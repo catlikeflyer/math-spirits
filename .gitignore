@@ -1,0 +1,90 @@
+# ============================================================
+# macOS
+# ============================================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ============================================================
+# Python / Server
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+wheels/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.pyright/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MLX / model weights & caches
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+models/
+data/raw/
+data/processed/
+*.mlpackage/
+
+# ============================================================
+# Node / Web
+# ============================================================
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+*.local
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# ============================================================
+# Editors & IDEs
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================================
+# Misc
+# ============================================================
+*.log
+*.tmp
+*.temp

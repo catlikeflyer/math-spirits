@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-main: #131416;
+    --card-bg: #1a1c20;
+    --border-color: #2a2d35;
+    --text-main: #eceae3;
+    --text-muted: #8e8b83;
+  }
+
+  .light {
+    --bg-main: #fcfbf9;
+    --card-bg: #ffffff;
+    --border-color: #e5e2db;
+    --text-main: #1c1917;
+    --text-muted: #68645e;
+  }
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  overflow-x: hidden;
+}
+
+/* Custom Minimalist Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 137, 130, 0.25);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 137, 130, 0.45);
+}
+
+/* Academic Card & Panel Utilities */
+.academic-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+}
+
+.academic-subtle-border {
+  border-color: var(--border-color);
+}
+
+/* KaTeX custom sizing and wrap */
+.katex-display {
+  margin: 0.75rem 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+
+.katex {
+  font-size: 1.05em;
+  text-rendering: geometricPrecision;
+}
+
+/* Hide KaTeX MathML fallback text to prevent duplicate numbers */
+.katex-mathml {
+  display: none !important;
+  position: absolute !important;
+  clip: rect(1px, 1px, 1px, 1px) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  height: 1px !important;
+  width: 1px !important;
+  overflow: hidden !important;
+}
