@@ -15,7 +15,7 @@ import { Telemetry, WebGPULoadProgress } from '../types';
 //
 // TODO: Replace <HF_USERNAME> with your actual HuggingFace username
 // after running scripts/upload_hf.sh
-const HF_USERNAME = '<HF_USERNAME>';
+const HF_USERNAME = 'catlikeflyer';
 
 const MATH_GHOST_MLC_ID   = 'math-ghost-1-q4f16_1-MLC';
 const MATH_SPECTRE_MLC_ID = 'math-spectre-1-q4f16_1-MLC';
@@ -154,11 +154,31 @@ export async function initWebGPUEngine(
 
   const appConfig = buildAppConfig();
 
-  engineInstance = await CreateMLCEngine(modelId, {
-    appConfig,
-    initProgressCallback: progressCallback,
-    logLevel: 'INFO',
-  });
+  try {
+    engineInstance = await CreateMLCEngine(modelId, {
+      appConfig,
+      initProgressCallback: progressCallback,
+      logLevel: 'INFO',
+    });
+  } catch (err) {
+    // If custom fine-tuned model failed to load (e.g. not yet uploaded to HF),
+    // fallback gracefully to prebuilt base model so WebGPU still functions
+    if (modelId === MATH_GHOST_MLC_ID || modelId === MATH_SPECTRE_MLC_ID) {
+      console.warn(
+        `[WebLLM] Failed to load custom weights for ${modelId} from Hugging Face. Falling back to base prebuilt model. Error:`,
+        err
+      );
+      const fallbackId = modelId === MATH_GHOST_MLC_ID ? GHOST_BASE_ID : SPECTRE_BASE_ID;
+      engineInstance = await CreateMLCEngine(fallbackId, {
+        appConfig: prebuiltAppConfig,
+        initProgressCallback: progressCallback,
+        logLevel: 'INFO',
+      });
+      currentLoadedModel = fallbackId;
+      return engineInstance;
+    }
+    throw err;
+  }
 
   currentLoadedModel = modelId;
   return engineInstance;

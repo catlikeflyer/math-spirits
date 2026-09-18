@@ -24,9 +24,40 @@ import {
 import { TopBar } from './components/TopBar';
 import { ChatCanvas } from './components/ChatCanvas';
 
+export const DEFAULT_FALLBACK_MODELS: ModelInfo[] = [
+  {
+    id: 'math-ghost-1',
+    name: 'Math Ghost 1',
+    display_name: 'Ghost 1 (Ultra-Light)',
+    base_model: 'Qwen/Qwen2.5-0.5B-Instruct',
+    adapter_path: './models/math-ghost-1/adapters',
+    quantization: 'Q4_K_M',
+    parameters: '0.5B',
+    context_window: 4096,
+    type: 'mlx',
+    system_prompt: 'You are Ghost, an ultra-fast, lightweight math tutor spirit. Always think through the problem step-by-step inside <thought> tags before providing the final answer.',
+    description: 'Ultra-lightweight 0.5B parameter fine-tuned model for sub-second mathematical deduction and reasoning on low-spec hardware and mobile devices.',
+    is_active: true,
+  },
+  {
+    id: 'math-spectre-1',
+    name: 'Math Spectre 1',
+    display_name: 'Spectre 1 (Math Spirit)',
+    base_model: 'Qwen/Qwen2.5-Math-1.5B',
+    adapter_path: './models/math-spectre-1/adapters',
+    quantization: 'Q4_K_M',
+    parameters: '1.5B',
+    context_window: 4096,
+    type: 'mlx',
+    system_prompt: 'You are Spectre, an expert math tutor. Always think through the solution step-by-step inside <thought> tags before giving the final answer.',
+    description: 'Fine-tuned Qwen2.5-Math-1.5B with step-by-step chain-of-thought reasoning scratchpad on GSM8K and NuminaMath.',
+    is_active: false,
+  },
+];
+
 export const App: React.FC = () => {
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [activeModelId, setActiveModelId] = useState<string>('');
+  const [models, setModels] = useState<ModelInfo[]>(DEFAULT_FALLBACK_MODELS);
+  const [activeModelId, setActiveModelId] = useState<string>('math-ghost-1');
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [engineMode, setEngineMode] = useState<EngineMode>('backend');
   const [isBackendHealthy, setIsBackendHealthy] = useState<boolean>(true);
@@ -39,7 +70,7 @@ export const App: React.FC = () => {
   const [webgpuLoading, setWebgpuLoading] = useState<boolean>(false);
   const [webgpuProgress, setWebgpuProgress] = useState<WebGPULoadProgress | null>(null);
   const [webgpuReady, setWebgpuReady] = useState<boolean>(false);
-  const [webgpuIsFinetuned, setWebgpuIsFinetuned] = useState<boolean>(false);
+  const [webgpuIsFinetuned, setWebgpuIsFinetuned] = useState<boolean>(isWebGPUFinetuned('math-ghost-1'));
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeModel = models.find((m) => m.id === activeModelId) || models[0] || null;
@@ -80,7 +111,9 @@ export const App: React.FC = () => {
 
       if (healthy) {
         const { models: discovered, active_model_id } = await fetchModels();
-        setModels(discovered);
+        if (discovered && discovered.length > 0) {
+          setModels(discovered);
+        }
         if (active_model_id) {
           setActiveModelId(active_model_id);
         }

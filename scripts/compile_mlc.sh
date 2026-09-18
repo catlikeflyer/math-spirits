@@ -26,12 +26,12 @@ echo "Quantization: $QUANTIZATION"
 echo ""
 
 # ─── Verify mlc_llm is available ─────────────────────────────────────────────
-if ! python3 -m mlc_llm --version &>/dev/null; then
+if ! python3 -c "import mlc_llm" &>/dev/null; then
   echo "[ERROR] mlc_llm not found. Install with:"
   echo "  conda activate mlc-env && pip install mlc-llm"
   exit 1
 fi
-echo "[OK] mlc_llm found: $(python3 -m mlc_llm --version 2>&1 | head -1)"
+echo "[OK] mlc_llm found: $(python3 -c "import mlc_llm; print(getattr(mlc_llm, '__version__', 'ready'))" 2>/dev/null || echo 'ready')"
 echo ""
 
 # ─── Helper function ─────────────────────────────────────────────────────────

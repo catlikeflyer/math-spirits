@@ -7,7 +7,7 @@
 #
 # Prerequisites:
 #   pip install huggingface_hub
-#   huggingface-cli login
+#   hf auth login (or huggingface-cli login)
 
 set -euo pipefail
 
@@ -26,16 +26,23 @@ echo "HF username : $HF_USERNAME"
 echo "Source      : $DIST_ROOT"
 echo ""
 
-# ─── Verify huggingface_hub CLI ───────────────────────────────────────────────
-if ! python3 -c "import huggingface_hub" &>/dev/null; then
-  echo "[ERROR] huggingface_hub not installed. Run: pip install huggingface_hub"
+# ─── Verify login via python huggingface_hub ────────────────────────────────
+if ! python3 -c "
+import huggingface_hub
+from huggingface_hub import HfApi
+api = HfApi()
+try:
+    user = api.whoami()
+    print(f'[OK] Authenticated as: {user.get(\"name\", user.get(\"username\", \"unknown\"))}')
+except Exception as e:
+    import sys
+    print(f'[ERROR] Not logged in to Hugging Face: {e}')
+    print('Please run: hf auth login')
+    sys.exit(1)
+" 2>&1; then
   exit 1
 fi
-
-if ! huggingface-cli whoami &>/dev/null; then
-  echo "[ERROR] Not logged in to HuggingFace. Run: huggingface-cli login"
-  exit 1
-fi
+echo ""
 
 # ─── Helper function ─────────────────────────────────────────────────────────
 upload_model() {
@@ -44,7 +51,7 @@ upload_model() {
   local FULL_REPO="$HF_USERNAME/$REPO_NAME"
 
   if [ ! -d "$MODEL_DIR" ]; then
-    echo "[SKIP] $MODEL_DIR not found. Run compile_mlc.sh first."
+    echo "[SKIP] $MODEL_DIR not found. Run compile_mlc_docker.sh first."
     return 0
   fi
 
@@ -54,18 +61,20 @@ upload_model() {
   # Create repo if it doesn't exist
   python3 -c "
 from huggingface_hub import HfApi
+import sys
 api = HfApi()
 try:
     api.create_repo('$FULL_REPO', repo_type='model', exist_ok=True, private=False)
-    print(f'  Repo ready: https://huggingface.co/$FULL_REPO')
+    print('  Repo ready: https://huggingface.co/$FULL_REPO')
 except Exception as e:
-    print(f'  Repo create warning: {e}')
+    print(f'  [ERROR] Failed to create repo {e}')
+    print('  Please ensure you are logged in with a WRITE token via: hf auth login --force')
+    sys.exit(1)
 "
 
   # Upload the full directory
   python3 -c "
 from huggingface_hub import HfApi
-import os
 api = HfApi()
 api.upload_folder(
     folder_path='$MODEL_DIR',
@@ -88,9 +97,8 @@ upload_model \
   "math-spectre-1-q4f16_1-MLC"
 
 echo "══════════════════════════════════════════════════"
-echo "[DONE] Both models uploaded."
+echo "[DONE] Upload complete."
 echo ""
 echo "Ghost-1  : https://huggingface.co/$HF_USERNAME/math-ghost-1-q4f16_1-MLC"
 echo "Spectre-1: https://huggingface.co/$HF_USERNAME/math-spectre-1-q4f16_1-MLC"
 echo ""
-echo "Copy these URLs and update webllm.ts accordingly."

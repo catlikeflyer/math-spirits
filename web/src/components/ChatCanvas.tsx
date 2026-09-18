@@ -242,7 +242,7 @@ export const ChatCanvas: React.FC<ChatCanvasProps> = ({
                     <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-stone-100 dark:border-stone-800/80">
                       <div className="flex items-center gap-2">
                         <span className="font-serif font-semibold text-xs tracking-wider uppercase text-stone-700 dark:text-stone-300">
-                          Math Spirits
+                          {activeModel?.display_name || activeModel?.name || 'Math Spirits'}
                         </span>
                         {message.isStreaming && (
                           <span className="text-[10px] font-mono text-stone-500">
@@ -263,7 +263,7 @@ export const ChatCanvas: React.FC<ChatCanvasProps> = ({
                       <ReasoningScratchpad
                         thoughtContent={thought}
                         isStreaming={message.isStreaming}
-                        spiritName="Spirits"
+                        spiritName={activeModel?.display_name?.split(' ')[0] || 'Spirits'}
                       />
                     )}
 
