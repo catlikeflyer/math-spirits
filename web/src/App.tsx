@@ -19,6 +19,7 @@ import {
   DEFAULT_WEBGPU_MODEL,
   getWebGPUModelForId,
   getCurrentWebGPUModel,
+  isWebGPUFinetuned,
 } from './services/webllm';
 import { TopBar } from './components/TopBar';
 import { ChatCanvas } from './components/ChatCanvas';
@@ -38,6 +39,7 @@ export const App: React.FC = () => {
   const [webgpuLoading, setWebgpuLoading] = useState<boolean>(false);
   const [webgpuProgress, setWebgpuProgress] = useState<WebGPULoadProgress | null>(null);
   const [webgpuReady, setWebgpuReady] = useState<boolean>(false);
+  const [webgpuIsFinetuned, setWebgpuIsFinetuned] = useState<boolean>(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeModel = models.find((m) => m.id === activeModelId) || models[0] || null;
@@ -111,11 +113,13 @@ export const App: React.FC = () => {
         const targetWebgpuModel = getWebGPUModelForId(modelId);
         if (targetWebgpuModel !== getCurrentWebGPUModel()) {
           setWebgpuReady(false);
+          setWebgpuIsFinetuned(false);
           setWebgpuLoading(true);
           await initWebGPUEngine(targetWebgpuModel, (progress) => {
             setWebgpuProgress(progress);
           });
           setWebgpuReady(true);
+          setWebgpuIsFinetuned(isWebGPUFinetuned(modelId));
         }
       }
     } catch (err: any) {
@@ -143,6 +147,7 @@ export const App: React.FC = () => {
             setWebgpuProgress(progress);
           });
           setWebgpuReady(true);
+          setWebgpuIsFinetuned(isWebGPUFinetuned(activeModelId));
         } catch (err: any) {
           alert(`WebGPU Initialization Error: ${err.message}`);
           setEngineMode('backend');
@@ -335,6 +340,7 @@ export const App: React.FC = () => {
         isDarkMode={isDarkMode}
         onToggleDarkMode={handleToggleDarkMode}
         isSwitchingModel={isSwitchingModel}
+        isWebGPUFinetuned={webgpuIsFinetuned}
       />
 
       {/* Backend Offline Fallback Banner */}

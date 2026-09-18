@@ -1,30 +1,111 @@
-import { CreateMLCEngine, MLCEngineInterface, InitProgressReport } from '@mlc-ai/web-llm';
+import {
+  CreateMLCEngine,
+  MLCEngineInterface,
+  InitProgressReport,
+  prebuiltAppConfig,
+  AppConfig,
+} from '@mlc-ai/web-llm';
 import { Telemetry, WebGPULoadProgress } from '../types';
 
-// Model mapping for WebGPU
-export const WEBGPU_MODEL_MAP: Record<string, { mlcModelId: string; displayName: string }> = {
+// ─── Fine-tuned model definitions ────────────────────────────────────────────
+// HuggingFace repos containing MLC-compiled fine-tuned weights.
+// The .wasm model library is reused from the prebuilt mlc-ai registry —
+// same Qwen2 architecture means the compiled kernel is identical;
+// only the weight shards differ (these are OUR fine-tuned weights).
+//
+// TODO: Replace <HF_USERNAME> with your actual HuggingFace username
+// after running scripts/upload_hf.sh
+const HF_USERNAME = '<HF_USERNAME>';
+
+const MATH_GHOST_MLC_ID   = 'math-ghost-1-q4f16_1-MLC';
+const MATH_SPECTRE_MLC_ID = 'math-spectre-1-q4f16_1-MLC';
+
+// Prebuilt wasm libraries from mlc-ai (Qwen2 architecture, same version as @mlc-ai/web-llm)
+const GHOST_BASE_ID   = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+const SPECTRE_BASE_ID = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
+
+function getPrebuiltModelLib(baseId: string): string {
+  const entry = prebuiltAppConfig.model_list.find((m) => m.model_id === baseId);
+  if (!entry?.model_lib) {
+    throw new Error(
+      `Cannot find prebuilt model_lib for ${baseId}. ` +
+      `Ensure @mlc-ai/web-llm version matches the compiled artifacts.`
+    );
+  }
+  return entry.model_lib as string;
+}
+
+// Custom AppConfig that loads YOUR fine-tuned weights but reuses prebuilt wasm.
+// Falls back to prebuilt base models if HF_USERNAME is not yet set.
+function buildAppConfig(): AppConfig {
+  const isConfigured = (HF_USERNAME as string) !== '<HF_USERNAME>' && (HF_USERNAME as string).trim() !== '';
+
+  if (!isConfigured) {
+    // Fallback: use base models from mlc-ai until HF_USERNAME is configured.
+    // This is clearly labeled in the UI via isFinetuned flag below.
+    return prebuiltAppConfig;
+  }
+
+  return {
+    model_list: [
+      {
+        model: `https://huggingface.co/${HF_USERNAME}/math-ghost-1-q4f16_1-MLC/resolve/main/`,
+        model_id: MATH_GHOST_MLC_ID,
+        model_lib: getPrebuiltModelLib(GHOST_BASE_ID),
+      },
+      {
+        model: `https://huggingface.co/${HF_USERNAME}/math-spectre-1-q4f16_1-MLC/resolve/main/`,
+        model_id: MATH_SPECTRE_MLC_ID,
+        model_lib: getPrebuiltModelLib(SPECTRE_BASE_ID),
+      },
+      // Also include the full prebuilt list so other models still work if needed.
+      ...prebuiltAppConfig.model_list,
+    ],
+  };
+}
+
+// ─── Model map ────────────────────────────────────────────────────────────────
+export interface WebGPUModelEntry {
+  mlcModelId: string;
+  displayName: string;
+  /** True when running our fine-tuned weights (not stock base model) */
+  isFinetuned: boolean;
+}
+
+const isConfigured = (HF_USERNAME as string) !== '<HF_USERNAME>' && (HF_USERNAME as string).trim() !== '';
+
+export const WEBGPU_MODEL_MAP: Record<string, WebGPUModelEntry> = {
   'math-ghost-1': {
-    mlcModelId: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
-    displayName: 'Ghost 1 (0.5B WebGPU)',
+    mlcModelId: isConfigured ? MATH_GHOST_MLC_ID : GHOST_BASE_ID,
+    displayName: isConfigured ? 'Ghost 1 (Fine-tuned WebGPU)' : 'Ghost 1 (Base · WebGPU)',
+    isFinetuned: isConfigured,
   },
   'math-spectre-1': {
-    mlcModelId: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
-    displayName: 'Spectre 1 (1.5B WebGPU)',
+    mlcModelId: isConfigured ? MATH_SPECTRE_MLC_ID : SPECTRE_BASE_ID,
+    displayName: isConfigured ? 'Spectre 1 (Fine-tuned WebGPU)' : 'Spectre 1 (Base · WebGPU)',
+    isFinetuned: isConfigured,
   },
 };
 
-export const DEFAULT_WEBGPU_MODEL = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+export const DEFAULT_WEBGPU_MODEL = isConfigured ? MATH_GHOST_MLC_ID : GHOST_BASE_ID;
 
 export function getWebGPUModelForId(modelId?: string): string {
   if (modelId && WEBGPU_MODEL_MAP[modelId]) {
     return WEBGPU_MODEL_MAP[modelId].mlcModelId;
   }
   if (modelId?.toLowerCase().includes('spectre')) {
-    return 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
+    return isConfigured ? MATH_SPECTRE_MLC_ID : SPECTRE_BASE_ID;
   }
-  return 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+  return DEFAULT_WEBGPU_MODEL;
 }
 
+/** Returns true when running actual fine-tuned weights in WebGPU mode */
+export function isWebGPUFinetuned(modelId?: string): boolean {
+  if (!modelId) return false;
+  return WEBGPU_MODEL_MAP[modelId]?.isFinetuned ?? false;
+}
+
+// ─── Engine state ─────────────────────────────────────────────────────────────
 let engineInstance: MLCEngineInterface | null = null;
 let currentLoadedModel: string | null = null;
 
@@ -36,6 +117,7 @@ export function getCurrentWebGPUModel(): string | null {
   return currentLoadedModel;
 }
 
+// ─── Engine init ──────────────────────────────────────────────────────────────
 export async function initWebGPUEngine(
   modelId: string = DEFAULT_WEBGPU_MODEL,
   onProgress?: (progress: WebGPULoadProgress) => void
@@ -50,6 +132,17 @@ export async function initWebGPUEngine(
     );
   }
 
+  // Destroy previous engine before loading a new model to free VRAM
+  if (engineInstance) {
+    try {
+      await (engineInstance as any).unload?.();
+    } catch {
+      // unload may not exist in all versions — ignore
+    }
+    engineInstance = null;
+    currentLoadedModel = null;
+  }
+
   const progressCallback = (report: InitProgressReport) => {
     if (onProgress) {
       onProgress({
@@ -59,7 +152,10 @@ export async function initWebGPUEngine(
     }
   };
 
+  const appConfig = buildAppConfig();
+
   engineInstance = await CreateMLCEngine(modelId, {
+    appConfig,
     initProgressCallback: progressCallback,
     logLevel: 'INFO',
   });
@@ -68,6 +164,7 @@ export async function initWebGPUEngine(
   return engineInstance;
 }
 
+// ─── Streaming chat ───────────────────────────────────────────────────────────
 export async function streamWebGPUChat(
   messages: { role: string; content: string }[],
   options: { temperature?: number; max_tokens?: number; systemPrompt?: string },

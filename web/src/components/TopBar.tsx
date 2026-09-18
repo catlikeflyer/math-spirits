@@ -8,6 +8,7 @@ import {
   Moon,
   ChevronDown,
   Activity,
+  Sparkles,
 } from 'lucide-react';
 import { ModelInfo, SystemStatus, EngineMode } from '../types';
 
@@ -24,6 +25,8 @@ interface TopBarProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   isSwitchingModel?: boolean;
+  /** True when WebGPU mode is loaded with actual fine-tuned Math Spirits weights */
+  isWebGPUFinetuned?: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -39,6 +42,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   isDarkMode,
   onToggleDarkMode,
   isSwitchingModel = false,
+  isWebGPUFinetuned = false,
 }) => {
   const activeModel = models.find((m) => m.id === activeModelId) || models[0];
 
@@ -107,6 +111,17 @@ export const TopBar: React.FC<TopBarProps> = ({
             >
               {activeModel?.parameters || '1.5B'}
             </span>
+
+            {/* Fine-tuned badge — only shown in WebGPU mode with real fine-tuned weights */}
+            {engineMode === 'webgpu' && isWebGPUFinetuned && (
+              <span
+                className="flex items-center gap-1 px-2 py-0.5 rounded bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700/50"
+                title="Running actual Math Spirits fine-tuned weights (LoRA-fused, MLC q4f16_1)"
+              >
+                <Sparkles className="w-2.5 h-2.5" />
+                Fine-tuned
+              </span>
+            )}
 
             {/* Hardware Telemetry Badge */}
             {systemStatus && (
