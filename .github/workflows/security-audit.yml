@@ -1,0 +1,52 @@
+name: Security Audit
+
+on:
+  push:
+    paths:
+      - 'web/package*.json'
+      - 'server/requirements.txt'
+      - 'requirements-dev.txt'
+  pull_request:
+    paths:
+      - 'web/package*.json'
+      - 'server/requirements.txt'
+      - 'requirements-dev.txt'
+  schedule:
+    # Run once a week at midnight on Sunday
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  npm-audit:
+    name: NPM Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Run npm audit
+        working-directory: web
+        run: npm audit --audit-level=high
+
+  python-audit:
+    name: Python Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit on dependencies
+        run: pip-audit -r requirements-dev.txt

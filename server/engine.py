@@ -1,4 +1,3 @@
-import os
 import gc
 import json
 import time
@@ -9,9 +8,16 @@ from pathlib import Path
 from typing import Dict, Any, Generator, Optional, List
 
 import psutil
-import mlx.core as mx
-import mlx_lm
-from mlx_lm.sample_utils import make_sampler
+try:
+    import mlx.core as mx
+    import mlx_lm
+    from mlx_lm.sample_utils import make_sampler
+    MLX_AVAILABLE = True
+except ImportError:
+    mx = None
+    mlx_lm = None
+    make_sampler = None
+    MLX_AVAILABLE = False
 
 try:
     import llama_cpp
@@ -38,29 +44,35 @@ class ModelEngine:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or Path(__file__).resolve().parent.parent)
         self.models_dir = self.workspace_root / "models"
-        
+
         self.registered_models: Dict[str, Dict[str, Any]] = {}
         self.active_model_id: Optional[str] = None
         self.active_model_type: Optional[str] = None
-        
+
         # Model handles (managed exclusively on the worker thread)
         self._mlx_model = None
         self._mlx_tokenizer = None
         self._llama_model = None
-        
+
         # Task queue and dedicated worker thread
         self._task_queue = queue.Queue()
         self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True, name="MLX-Inference-Worker")
         self._worker_thread.start()
-        
+
         self.discover_models()
-        
+
         # Auto-select math-spectre-1 if present
         if "math-spectre-1" in self.registered_models:
-            self.select_model("math-spectre-1")
+            try:
+                self.select_model("math-spectre-1")
+            except Exception as e:
+                logger.warning(f"Could not auto-select 'math-spectre-1': {e}")
         elif self.registered_models:
-            first_model = next(iter(self.registered_models.keys()))
-            self.select_model(first_model)
+            try:
+                first_model = next(iter(self.registered_models.keys()))
+                self.select_model(first_model)
+            except Exception as e:
+                logger.warning(f"Could not auto-select model '{first_model}': {e}")
 
     def _worker_loop(self):
         """Dedicated execution loop for all MLX / llama.cpp memory operations."""
@@ -69,17 +81,17 @@ class ModelEngine:
             task = self._task_queue.get()
             if task is None:
                 break
-                
+
             task_type, payload, reply_queue = task
             try:
                 if task_type == "select_model":
                     model_id = payload["model_id"]
                     meta = self._load_model_on_worker(model_id)
                     reply_queue.put({"success": True, "meta": meta})
-                    
+
                 elif task_type == "generate":
                     self._generate_on_worker(payload, reply_queue)
-                    
+
             except Exception as exc:
                 logger.error(f"Error in inference worker task '{task_type}': {exc}", exc_info=True)
                 reply_queue.put({"type": "error", "error": str(exc)})
@@ -115,9 +127,11 @@ class ModelEngine:
         t0 = time.perf_counter()
 
         if mtype == "mlx":
+            if not MLX_AVAILABLE:
+                raise RuntimeError("MLX is not installed or not supported on this platform.")
             base_model = model_meta.get("base_model", "Qwen/Qwen2.5-Math-1.5B")
             adapter_path = model_meta.get("adapter_path")
-            
+
             if adapter_path and not Path(adapter_path).exists():
                 logger.warning(f"Adapter path {adapter_path} not found. Attempting fallback...")
                 root_path = Path(model_meta.get("root_path", ""))
@@ -307,7 +321,7 @@ class ModelEngine:
     def discover_models(self) -> Dict[str, Dict[str, Any]]:
         """Scans models/ and workspace directories to discover available models."""
         self.registered_models.clear()
-        
+
         # Check standard models/ directory
         if self.models_dir.exists() and self.models_dir.is_dir():
             for entry in self.models_dir.iterdir():
@@ -372,13 +386,13 @@ class ModelEngine:
         """Formats multi-turn messages into ChatML syntax."""
         meta = self.registered_models.get(self.active_model_id, {})
         effective_system = system_prompt or meta.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
-        
+
         has_system = any(m.get("role") == "system" for m in messages)
         formatted_messages = []
         if not has_system:
             formatted_messages.append({"role": "system", "content": effective_system})
         formatted_messages.extend(messages)
-        
+
         prompt_parts = []
         for msg in formatted_messages:
             role = msg.get("role", "user")
@@ -424,7 +438,7 @@ class ModelEngine:
     def get_system_telemetry(self) -> Dict[str, Any]:
         """Returns unified RAM and Apple Silicon Metal GPU memory metrics."""
         vm = psutil.virtual_memory()
-        
+
         try:
             active_metal_gb = mx.get_active_memory() / (1024 ** 3)
             peak_metal_gb = mx.get_peak_memory() / (1024 ** 3)

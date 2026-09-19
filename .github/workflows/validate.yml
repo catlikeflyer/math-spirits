@@ -1,0 +1,126 @@
+name: Validate & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-validation:
+    name: Frontend (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Run TypeScript Type Check
+        working-directory: web
+        run: npx tsc --noEmit
+
+      - name: Build Web Application
+        working-directory: web
+        run: npm run build
+
+      - name: Verify Build Artifacts
+        working-directory: web
+        run: test -f dist/index.html
+
+  python-backend-validation:
+    name: Python Backend & Pipeline (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Ruff Linter
+        run: ruff check .
+
+      - name: Verify Syntax Compilation
+        run: python -m compileall server scripts tests
+
+      - name: Run Unit & Integration Tests
+        run: pytest tests/ -v
+
+  configs-and-scripts-validation:
+    name: Model Configs & Shell Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Config Validation Dependencies
+        run: pip install pyyaml
+
+      - name: Validate Shell Scripts Syntax
+        run: |
+          for script in scripts/*.sh; do
+            if [ -f "$script" ]; then
+              echo "Validating syntax of $script..."
+              bash -n "$script"
+            fi
+          done
+
+      - name: Validate Model JSON Configurations
+        run: |
+          for config in models/*/configs/*.json; do
+            if [ -f "$config" ]; then
+              echo "Validating JSON syntax: $config"
+              python3 -m json.tool "$config" > /dev/null
+            fi
+          done
+
+      - name: Validate LoRA YAML Configurations
+        run: |
+          python3 -c "
+          import glob, yaml, sys
+          files = glob.glob('models/*/configs/*.yaml')
+          for f in files:
+              print(f'Validating YAML syntax: {f}')
+              with open(f, 'r') as fp:
+                  yaml.safe_load(fp)
+          print('All YAML configs valid.')
+          "

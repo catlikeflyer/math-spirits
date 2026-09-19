@@ -1,14 +1,14 @@
 import os
 import json
 import logging
-from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, Request
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
-from server.engine import ModelEngine, DEFAULT_SYSTEM_PROMPT
+from server.engine import ModelEngine
 
 logger = logging.getLogger("math_spirits.api")
 logging.basicConfig(level=logging.INFO)
@@ -66,7 +66,7 @@ async def list_models():
     """Dynamic Model Discovery: List all discovered models and their status."""
     engine.discover_models()
     models_list = []
-    
+
     for mid, meta in engine.registered_models.items():
         models_list.append({
             "id": mid,
@@ -82,7 +82,7 @@ async def list_models():
             "system_prompt": meta.get("system_prompt", ""),
             "is_active": (mid == engine.active_model_id),
         })
-        
+
     return {
         "models": models_list,
         "active_model_id": engine.active_model_id,

@@ -26,7 +26,7 @@ def format_gsm8k(example):
     """GSM8K encodes intermediate steps and final answer separated by '####'."""
     q = clean_text(example.get("question", ""))
     a = clean_text(example.get("answer", ""))
-    
+
     if not q or not a:
         return None
 
@@ -91,7 +91,7 @@ def main():
     # 1. Process GSM8K
     print("Fetching GSM8K...")
     gsm = load_dataset("openai/gsm8k", "main")
-    
+
     gsm_train = [format_gsm8k(ex) for ex in gsm["train"]]
     gsm_train = [ex for ex in gsm_train if ex is not None]
     all_examples.extend(gsm_train)
@@ -100,10 +100,10 @@ def main():
     # 2. Stream and filter NuminaMath-CoT
     print("Streaming and filtering NuminaMath-CoT...")
     numina_stream = load_dataset("AI-MO/NuminaMath-CoT", split="train", streaming=True)
-    
+
     numina_collected = 0
     pbar = tqdm(total=MAX_NUMINA_SAMPLES, desc="NuminaMath")
-    
+
     for ex in numina_stream:
         formatted = format_numina(ex)
         if formatted:
